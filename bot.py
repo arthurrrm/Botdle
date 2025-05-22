@@ -9,6 +9,9 @@ DEBUG = True
 # List of supported games:
 # wordle, timeguessr
 
+# create the db if the file doesn't exist
+if not os.path.exists("scores.db"):
+    reset_db()
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -32,6 +35,8 @@ async def on_message(message):
     channel_id = str(message.channel.id)
     game_name = get_game_name(channel_id)
     score = parse_score(message.content, game_name)
+    if score == -1:
+        score = -10000
     
     if score is not None:
         username = message.author.display_name
@@ -40,7 +45,11 @@ async def on_message(message):
 
         try:
             add_score(discord_id, username, game_name, date, score)
-            await message.add_reaction("✅")
+            if score == -10000 : 
+                await message.add_reaction("❌")
+                await message.channel.send(f"❌{message.author.mention} tried to cheat!❌ penality applied.")
+            else:
+                await message.add_reaction("✅")
             print(f"[{game_name}] {username} → {score}%")
         except Exception as e:
             print(f"⚠️ Error saving score: {e}")
@@ -165,7 +174,13 @@ async def score(ctx, game_name: str = None):
         await ctx.send("No scores found for you in this game.")
     else:
         await ctx.send(f"🎯 Your average score in **{game_name}**: **{avg}%**")
-        
+       
+@bot.command()
+async def highscore(ctx, game_name: str = None):
+    await ctx.send("❌ This command is not yet available. Please check back later.")
+    return       
+
+       
 @bot.command(name="help")
 async def custom_help(ctx):
     help_text = """
@@ -174,6 +189,11 @@ async def custom_help(ctx):
 `!score <game>` – View your average score for a game  
 `!leaderboard [game]` – View leaderboard of the day for a game (or global if no game specified)
 `!help` – Show this help message
+`(soon) !highscore [game]` – View the higscore of this server and your highscore for a game (or global if no game specified)
+
+**Supported Games**:
+`Wordle, TimeGuessr, Framed, Angle, Worldle, Hexle`
+**Note**: The bot will automatically detect your scores for a game when you post them in the right channel.
 """
     await ctx.send(help_text)
 
@@ -190,15 +210,92 @@ def parse_score(content: str, game: str) -> int | None:
                 return 0  # Fail = 0
             else:
                 score = int(raw)
+                if score > 6 or score == 0:
+                    return -1 # We will use this to disqualify the player who tried to cheat ;)
                 return int((6 - score + 1) * (100 / 6)) 
 
     elif game == "timeguessr":
         # Example: TimeGuessr #720 38,317/50,000
-        match = re.search(r"TimeGuessr #\d+ ([\d,]+)/([\d,]+)", content)
+        match = re.search(r"TimeGuessr #\d+ ([\d,]+)/[\d,]+", content)
         if match:
             score = int(match.group(1).replace(",", ""))
-            max_score = int(match.group(2).replace(",", ""))
-            return int((score / max_score) * 100)
+            if score > 50000:
+                return -1
+            return int((score / 50000) * 100)
+        
+    elif game == "framed":
+        # Example: 
+        """
+        Framed #1168               
+        🎥 🟥 🟥 🟥 🟥 🟩 ⬛
+        """
+        match = re.search(r"Framed #\d+", content)
+        if match:
+            fails = content.count("🟥")
+            score = (6 - fails) * (100 / 6)
+            return score
+    
+    elif game == "angle":
+        # Example: 
+        """
+        angle #1066 3/4
+        ⬆️⬇️🎉
+        """
+        match = re.search(r"#\d+ (\d|X)/4", content)
+        if match:
+            raw = match.group(1)
+            if raw == "X":
+                return 0  # Fail = 0
+            else:
+                score = int(raw)
+                if score > 4 or score == 0:
+                    return -1
+                return int((4 - score + 1) * (100 / 4)) 
+            
+    elif game == "worldle":
+        # Example: 
+        """
+        Worldle #1217 (22.05.2025) 1/6 (100%)
+        """
+        match = re.search(r"#\d+ \(\d{2}\.\d{2}\.\d{4}\) (\d|X)/6", content)  # TODO: confirm the 'X' symbol
+        if match:
+            raw = match.group(1)
+            if raw == "X":
+                return 0
+            else:
+                score = int(raw)
+                if score > 6 or score == 0:
+                    return -1
+                return int((6 - score + 1) * (100 / 6))
+            
+    elif game == "hexle":
+        # Example:
+        """
+        Hexle 142 6/6
+        """
+        match = re.search(r"Hexle \d+ (\d|X)/6", content)
+        if match:
+            raw = match.group(1)
+            if raw == "X":
+                return content.count("🟩")/36/2*100 # we still give points for a lose XD
+            else:
+                score = int(raw)
+                if score > 6 or score == 0:
+                    return -1
+                # 6/6 is already a good score because ts too hard bro
+                if score == 6: 
+                    return 50
+                elif score == 5:
+                    return 75
+                elif score == 4:
+                    return 85
+                elif score == 3:
+                    return 90
+                elif score == 2:
+                    return 95
+                elif score == 1:
+                    return 100
+            
     
     return None
 

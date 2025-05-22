@@ -39,10 +39,30 @@ def reset_db():
         FOREIGN KEY (game_id) REFERENCES games(id)
     )
     """)
-
+    """
+    tes serv:
     add_game("wordle", "1374794459136655421")
     add_game("timeguessr", "1374794493395599440")
+    add_game("framed", "1375155452836315207")
+    add_game("angle", "1375157615423655966")
+    add_game("worldle", "1375160528837808259")
+    add_game("hexle", "1375160592251490315")
+    """
     
+    # Nuit de nympho
+    add_game("wordle", "1373389382551080992")
+    add_game("timeguessr", "1373285606976917618")
+    add_game("framed", "1373622523027259457")
+    add_game("angle", "1373626933392179260")
+    add_game("worldle", "1374710356424785962")
+    add_game("hexle", "1374712040643498045")
+    
+    
+    """
+    add_user("123456789", "TestUser")
+    add_score("123456789", "TestUser", "wordle", "2025-05-22", 80)
+    add_score("521317397060255744", "Arthur", "wordle", "2025-05-21", 60)
+    """
     conn.commit()
     conn.close()
     print("✅ Base de données réinitialisée.")
