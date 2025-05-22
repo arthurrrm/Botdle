@@ -14,7 +14,7 @@ if not os.path.exists("scores.db"):
     reset_db()
 
 load_dotenv()
-TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = os.getenv("DISCORD_TOKEN") # put your token in a .env file : DISCORD_TOKEN=your_token
 
 intents = discord.Intents.default()
 intents.message_content = True
