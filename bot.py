@@ -5,9 +5,11 @@ from discord.ext import commands
 import re
 from datetime import datetime
 from db import * 
+from db_setup import setup_db
 DEBUG = True
 # List of supported games:
-# wordle, timeguessr
+# wordle, timeguessr, framed, angle, worldle, hexleù
+setup_db()
 
 # create the db if the file doesn't exist
 if not os.path.exists("scores.db"):
@@ -177,8 +179,38 @@ async def score(ctx, game_name: str = None):
        
 @bot.command()
 async def highscore(ctx, game_name: str = None):
-    await ctx.send("❌ This command is not yet available. Please check back later.")
-    return       
+    discord_id = str(ctx.author.id)
+    username = ctx.author.display_name
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    if game_name:
+        # Game-specific highscore
+        game_high = get_game_highscore(game_name)
+        user_high = get_user_game_highscore(discord_id, game_name)
+        if game_high is None or game_high[1] is None:
+            await ctx.send(f"No highscore found for `{game_name}` yet.")
+            return
+        msg = f"🏆 **Highscore for {game_name}**\n"
+        msg += f"Server best: **{game_high[0]}** — **{game_high[1]}%** on {game_high[2]}\n"
+        if user_high is not None:
+            msg += f"Your best: **{user_high[0]}%** on {user_high[1]}"
+        else:
+            msg += "You have not played this game yet."
+        await ctx.send(msg)
+    else:
+        # All-time global highscore (best global leaderboard score ever achieved in a single day)
+        best_user, best_date, best_score = get_all_time_global_highscore()
+        user_best, user_date, user_score = get_user_all_time_global_highscore(discord_id)
+        if best_user is None:
+            await ctx.send("No global highscores found.")
+            return
+        msg = f"🌍 **All-Time Global Highscore**\n"
+        msg += f"Server best: **{best_user}** — **{best_score}%** on {best_date}\n"
+        if user_score is not None and user_date is not None:
+            msg += f"Your best: **{user_score}%** on {user_date}"
+        else:
+            msg += "You have not played any games."
+        await ctx.send(msg)
 
        
 @bot.command(name="help")
@@ -188,8 +220,8 @@ async def custom_help(ctx):
 
 `!score <game>` – View your average score for a game  
 `!leaderboard [game]` – View leaderboard of the day for a game (or global if no game specified)
+`!highscore [game]` – View the highscore of this server and your highscore for a game (or the highest for all games in a day if no game specified)
 `!help` – Show this help message
-`(soon) !highscore [game]` – View the higscore of this server and your highscore for a game (or global if no game specified)
 
 **Supported Games**:
 `Wordle, TimeGuessr, Framed, Angle, Worldle, Hexle`

@@ -39,30 +39,7 @@ def reset_db():
         FOREIGN KEY (game_id) REFERENCES games(id)
     )
     """)
-    """
-    tes serv:
-    add_game("wordle", "1374794459136655421")
-    add_game("timeguessr", "1374794493395599440")
-    add_game("framed", "1375155452836315207")
-    add_game("angle", "1375157615423655966")
-    add_game("worldle", "1375160528837808259")
-    add_game("hexle", "1375160592251490315")
-    """
-    
-    # Nuit de nympho
-    add_game("wordle", "1373389382551080992")
-    add_game("timeguessr", "1373285606976917618")
-    add_game("framed", "1373622523027259457")
-    add_game("angle", "1373626933392179260")
-    add_game("worldle", "1374710356424785962")
-    add_game("hexle", "1374712040643498045")
-    
-    
-    """
-    add_user("123456789", "TestUser")
-    add_score("123456789", "TestUser", "wordle", "2025-05-22", 80)
-    add_score("521317397060255744", "Arthur", "wordle", "2025-05-21", 60)
-    """
+    # For test server and Nuit de nympho server setup, see test_db_setup.py and nympho_db_setup.py
     conn.commit()
     conn.close()
     print("✅ Base de données réinitialisée.")
@@ -95,7 +72,7 @@ def get_game_name(channel_id):
     conn.close()
     return row[0] if row else None
 
-# Récupérer ID d’un utilisateur
+# Récupérer ID d'un utilisateur
 def get_user_id(discord_id):
     conn = get_conn()
     cursor = conn.cursor()
@@ -104,7 +81,7 @@ def get_user_id(discord_id):
     conn.close()
     return row[0] if row else None
 
-# Récupérer ID d’un jeu
+# Récupérer ID d'un jeu
 def get_game_id(name):
     conn = get_conn()
     cursor = conn.cursor()
@@ -137,7 +114,7 @@ def add_score(discord_id, pseudo, game_name, date, score):
         conn.close()
 
 
-# R\u00e9cup\u00e9rer les scores d’un jeu pour une date
+# Récupérer les scores d'un jeu pour une date
 def get_scores_by_game_and_date(game_name, date):
     conn = get_conn()
     cursor = conn.cursor()
@@ -156,6 +133,114 @@ def get_scores_by_game_and_date(game_name, date):
     conn.close()
     return results
 
-# Ne s’exécute que si tu fais : python db.py
+def get_user_highscore(discord_id, game_name):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT MAX(score)
+        FROM scores
+        JOIN users ON users.id = scores.user_id
+        JOIN games ON games.id = scores.game_id
+        WHERE users.discord_id = ? AND games.name = ?
+    ''', (discord_id, game_name))
+    result = cursor.fetchone()[0]
+    conn.close()
+    return result
+
+
+def get_game_highscore(game_name):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT users.pseudo, scores.score, scores.date
+        FROM scores
+        JOIN users ON users.id = scores.user_id
+        JOIN games ON games.id = scores.game_id
+        WHERE games.name = ?
+        ORDER BY scores.score DESC, scores.date ASC
+        LIMIT 1
+    ''', (game_name,))
+    result = cursor.fetchone()
+    conn.close()
+    return result  # (pseudo, score, date)
+
+
+def get_all_time_global_highscore():
+    conn = get_conn()
+    cursor = conn.cursor()
+    # Get all game ids
+    cursor.execute('SELECT id FROM games')
+    games = cursor.fetchall()
+    game_ids = [gid for gid, in games]
+    total_games = len(game_ids)
+    # Get all users
+    cursor.execute('SELECT id, pseudo FROM users')
+    users = cursor.fetchall()
+    # Get all dates
+    cursor.execute('SELECT DISTINCT date FROM scores')
+    dates = [row[0] for row in cursor.fetchall()]
+    best = {'pseudo': None, 'date': None, 'score': -1}
+    for date in dates:
+        for user_id, pseudo in users:
+            cursor.execute('SELECT game_id, score FROM scores WHERE user_id = ? AND date = ?', (user_id, date))
+            scores = cursor.fetchall()
+            score_dict = {gid:0 for gid in game_ids}
+            for gid, score in scores:
+                score_dict[gid] = score
+            total = sum(score_dict.values())
+            avg = round(total / total_games, 1) if total_games else 0
+            if avg > best['score']:
+                best = {'pseudo': pseudo, 'date': date, 'score': avg}
+    conn.close()
+    return best['pseudo'], best['date'], best['score']
+
+def get_user_all_time_global_highscore(discord_id):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM games')
+    games = cursor.fetchall()
+    game_ids = [gid for gid, in games]
+    total_games = len(game_ids)
+    cursor.execute('SELECT id, pseudo FROM users WHERE discord_id = ?', (discord_id,))
+    user = cursor.fetchone()
+    if not user:
+        conn.close()
+        return None, None, None
+    user_id, pseudo = user
+    cursor.execute('SELECT DISTINCT date FROM scores WHERE user_id = ?', (user_id,))
+    dates = [row[0] for row in cursor.fetchall()]
+    best = {'date': None, 'score': -1}
+    for date in dates:
+        cursor.execute('SELECT game_id, score FROM scores WHERE user_id = ? AND date = ?', (user_id, date))
+        scores = cursor.fetchall()
+        score_dict = {gid:0 for gid in game_ids}
+        for gid, score in scores:
+            score_dict[gid] = score
+        total = sum(score_dict.values())
+        avg = round(total / total_games, 1) if total_games else 0
+        if avg > best['score']:
+            best = {'date': date, 'score': avg}
+    conn.close()
+    if best['score'] == -1:
+        return pseudo, None, None
+    return pseudo, best['date'], best['score']
+
+def get_user_game_highscore(discord_id, game_name):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT scores.score, scores.date
+        FROM scores
+        JOIN users ON users.id = scores.user_id
+        JOIN games ON games.id = scores.game_id
+        WHERE users.discord_id = ? AND games.name = ?
+        ORDER BY scores.score DESC, scores.date ASC
+        LIMIT 1
+    ''', (discord_id, game_name))
+    result = cursor.fetchone()
+    conn.close()
+    return result  # (score, date)
+
+# Ne s'exécute que si tu fais : python db.py
 if __name__ == "__main__":
     reset_db()
